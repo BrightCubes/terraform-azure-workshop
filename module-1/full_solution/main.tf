@@ -79,14 +79,14 @@ resource "azurerm_linux_virtual_machine" "bctf-vm" {
     computer_name         = local.trimmed_rootname
     tags                  = local.tags
 
-    # admin_ssh_key {
-    #     username   = var.yourname
-    #     public_key = tls_private_key.bctf-ssh-key.public_key_openssh
-    # }
-    #disable_password_authentication = true
+    admin_ssh_key {
+        username   = var.yourname
+        public_key = tls_private_key.bctf-ssh-key.public_key_openssh
+    }
+    disable_password_authentication = true
     
-    admin_password = "ThisWasSuchACoolWorkshop!1!"
-    disable_password_authentication = false
+    # admin_password = "ThisWasSuchACoolWorkshop!1!"
+    # disable_password_authentication = false
 
     source_image_reference {
         publisher = "Canonical"
