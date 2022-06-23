@@ -232,35 +232,7 @@ Now when you try to run it, it will show the following message:
 
 This is a great example of what Terraform calls *implicit dependencies* ([more here](https://learn.hashicorp.com/tutorials/terraform/dependencies)). What is basically happening, is that Terraform automatically creates resources in a specific order based on their dependencies, which are defined using resource references. The problem here is that we are defining an access policy for `azurerm_linux_virtual_machine.bctf-vm` on key vault `azurerm_key_vault.bctf-kv` which means Terraform will first create the virtual machine and then reference it in the access policy. But the virtual machine is also reliant on the `azurerm_key_vault_secret.bctf-public-key` which is only created after the Key Vault is created. This causes a cycle that Terraform cannot understand by itself.
 
-> To solve this, take your access access policy out of the `azurerm_key_vault` resource and into an `azurerm_key_vault_access_policy` resource. Also make sure to create an explicit dependency (reference the link above) on both `azurerm_key_vault_secret` resources on your access policy. If you do not do this, you may run into errors that your user is not allowed to access the key vault.
-
-<details>
-<summary>Solution</summary>
-
-```hcl
-    # azurerm_key_vault_access_policy
-    resource "azurerm_key_vault_access_policy" "bctf-kv-current-ap" {
-        key_vault_id       = azurerm_key_vault.bctf-kv.id
-        tenant_id          = data.azurerm_client_config.current.tenant_id
-        object_id          = data.azurerm_client_config.current.object_id
-        secret_permissions = ["Get", "Set", "List",]
-    }
-
-    resource "azurerm_key_vault_access_policy" "bctf-kv-vm-ap" {
-        key_vault_id       = azurerm_key_vault.bctf-kv.id
-        tenant_id          = data.azurerm_client_config.current.tenant_id
-        object_id          = azurerm_linux_virtual_machine.bctf-vm.identity[0].principal_id
-        secret_permissions = ["Get",]
-    }
-
-    # resource "azurerm_key_vault_secret" "bctf-private-key" **and** "bctf-public-key"
-    depends_on = [
-      azurerm_key_vault_access_policy.bctf-kv-current-ap
-    ]
-```
-
-</details>
-<p></p>
+> To solve this, change back the reference to `tls_private_key.bctf-ssh-key.private_key_openssh` on your `azurerm_linux_virtual_machine` resource.
 
 Our virtual machine now has access to the Key Vault using it's own identity. We can now log back in to the virtual machine and authenticate to Azure without specifying any credentials:
 
