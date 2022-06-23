@@ -8,8 +8,8 @@ output "public_ip_address" {
   value       = azurerm_public_ip.bctf-pip.ip_address
 }
 
-output "private_ssh_key" {
-  description = "The private SSH key to access the VRE"
-  value       = tls_private_key.bctf-ssh-key.private_key_pem
-  sensitive   = true
-}
+# output "private_ssh_key" {
+#   description = "The private SSH key to access the VRE"
+#   value       = tls_private_key.bctf-ssh-key.private_key_pem
+#   sensitive   = true
+# }

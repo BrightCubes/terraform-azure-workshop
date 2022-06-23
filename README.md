@@ -13,6 +13,7 @@ Some general tips before you start:
 - With Terraform, you basically create a template to deploy infrastructure. This means that a lot of examples are available all over the internet. You can often find a module or template that allows you to only fill out some variables in order to deploy a resource that matches your needs.
 - Think of Terraform as an API layer for the Azure API itself. Any option you see in the Azure portal, or remember from your work, has an equivalent property in the corresponding resource. So if you are lost, go to the portal and try creating a resource manually. The properties you see there reflect the properties you can set for that resource in Terraform. Just use the [provider documentation](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs) to find out the name of the property for that resource.
 - Always run `terraform plan` before you run `terraform apply`. Terraform will clearly show you the impact your code changes will have on the real world infrastructure. You can experiment all you want if you use `plan`.
+- If you run into any issues anywhere, just run `terraform destroy` and `terraform apply` again. The beauty of declarative languages is you get exactly the same infrastructure back the way you wrote it in your code :)
 
 And some useful links:
 
