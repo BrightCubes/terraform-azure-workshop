@@ -51,7 +51,7 @@ We are currently only storing our credentials and SSH key within Terraform. With
 An Azure Key vault is fully locked by default. You have to explicitly give access to a vault using access policies. These access policies require you to specify an Object ID, which is a unique identifier for an identity in Azure. These identities are either a user, service principal or security group in the Azure Active Directory tenant. If you are using a service principal or security group, both an Application and an Object ID is provided. In the case that you are logged in with your personal Microsoft account, only an Object ID is provided.
 Note: you can also use Azure RBAC for authorization, but that it out of scope for this workshop. You can read more about Key Vault access policies vs. Azure RBAC tradeoff [here](https://docs.microsoft.com/en-us/azure/key-vault/general/rbac-migration)
 
-> Create an Azure Key Vault resource with the `standard` SKU. Configure that deleted secrets are retained for 10 days and ensure that RBAC authorization is disabled in favor of access policies. Make sure that your own user (or your configured service principal) has `Create & Get` secret permissions. Use the same naming convention, tags and the resource references you learned in the previous module.
+> Create an Azure Key Vault resource with the `standard` SKU. Configure that deleted secrets are retained for 10 days and ensure that RBAC authorization is disabled in favor of access policies. Make sure that your own user (or your configured service principal) has `Set & Get` secret permissions. Use the same naming convention, tags and the resource references you learned in the previous module.
 
 <details>
 <summary>Solution</summary>
