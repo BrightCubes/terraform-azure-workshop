@@ -88,11 +88,12 @@ TIP: Use the [`azurerm_client_config` data source](https://registry.terraform.io
 **Bonus points**: You currently cannot verify that your user has access to the secret in Key Vault in the Azure Portal. What additional permission do you need for this?
 
 We want to ensure that our Linux virtual machine's admin user is locked down using a key that is not available anywhere but in the Key Vault. The limitation of the `tls_private_key` we used in the previous module is that it is still written in plain-text to the state file, and can thus be accessed by anyone that has access to the state file.
-> Verify this using the `terraform output` command. Add the name of the output in `outputs.tf` and the end of this command.
+> Verify this using the `terraform output` command. Add the name of the output in `outputs.tf` and the end of this command. Add the `-raw` flag to be sure you do not get weird additional characters.
+
 <details>
 <summary>Output</summary>
 
-    terraform output private_ssh_key
+    terraform output -raw private_ssh_key
 
     -----BEGIN RSA PRIVATE KEY-----
     ...key contents...
