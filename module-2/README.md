@@ -74,7 +74,7 @@ resource "azurerm_key_vault" "bctf-kv" {
 
     secret_permissions = [
       "Get",
-      "Create",
+      "Set",
     ]
   }
 }
@@ -142,7 +142,7 @@ Now that we have created the secrets in the Azure Key Vault, you can check them 
 ...
     secret_permissions = [
       "Get",
-      "Create",
+      "Set",
       "List",
     ]
 ...

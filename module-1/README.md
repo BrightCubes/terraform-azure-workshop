@@ -650,6 +650,12 @@ You should now be able to connect to the VRE using the following command:
 ssh -i bctf-private-key.pem <your_name>@<ip_address>
 ```
 
+If this does not work, try using the ssh-agent combined with the `terraform output` command.
+```
+eval $(ssh-agent -s) && terraform output -raw private_ssh_key | tr -d '\r' | ssh-add -
+```
+Now you can connect without the `-i` flag referencing your key, so connecting is `ssh -i <your_name>@<ip_address>`
+
 NOTE: If you're having difficulties with connecting using a private key, try using password authentication instead. See the solution block above for both methods. The VM will need to be recreated if you change this, but that is not an issue.
 
 ## Level 9: Destroy all of your resources
