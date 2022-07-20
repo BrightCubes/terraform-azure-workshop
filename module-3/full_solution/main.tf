@@ -33,18 +33,40 @@ resource "azurerm_storage_account" "bctf-sa" {
   account_replication_type = "LRS"
 }
 
-data "azurerm_virtual_network" "bctf-vnet" {
-  name                = "bctf-workshop-vnet"
-  resource_group_name = "bctf-workshop-rg"
+module "azure-vnet" {
+  source              = "Azure/vnet/azurerm"
+
+  vnet_name           = "${local.rootname}-vnet"
+  resource_group_name = azurerm_resource_group.bctf-rg.name
+  address_space       = ["10.5.0.0/16"]
+  subnet_prefixes     = ["10.5.90.0/24", "10.5.100.0/24"]
+  subnet_names        = ["subnet1", "subnet2"]
+
+  subnet_service_endpoints = {
+    subnet1 = ["Microsoft.Storage", "Microsoft.Sql", "Microsoft.KeyVault"]
+    subnet2 = ["Microsoft.KeyVault"]
+  }
+
+  nsg_ids = {
+    subnet1 = azurerm_network_security_group.bctf-nsg.id
+    subnet2 = azurerm_network_security_group.bctf-nsg.id
+  }
+
+  tags = local.tags
 }
 
-resource "azurerm_subnet" "bctf-subnet" {
-  name                 = "${local.rootname}-subnet"
-  resource_group_name  = data.azurerm_virtual_network.bctf-vnet.resource_group_name
-  virtual_network_name = data.azurerm_virtual_network.bctf-vnet.name
-  address_prefixes     = ["10.0.90.0/24"]
-  service_endpoints    = ["Microsoft.Storage", "Microsoft.KeyVault"]
-}
+# data "azurerm_virtual_network" "bctf-vnet" {
+#   name                = "bctf-workshop-vnet"
+#   resource_group_name = "bctf-workshop-rg"
+# }
+
+# resource "azurerm_subnet" "bctf-subnet" {
+#   name                 = "${local.rootname}-subnet"
+#   resource_group_name  = data.azurerm_virtual_network.bctf-vnet.resource_group_name
+#   virtual_network_name = data.azurerm_virtual_network.bctf-vnet.name
+#   address_prefixes     = ["10.0.90.0/24"]
+#   service_endpoints    = ["Microsoft.Storage", "Microsoft.KeyVault"]
+# }
 
 resource "azurerm_public_ip" "bctf-pip" {
   name                = "${local.rootname}-pip"
@@ -62,7 +84,7 @@ resource "azurerm_network_interface" "bctf-nic" {
 
   ip_configuration {
     name                          = "${local.rootname}-nic-cfg"
-    subnet_id                     = azurerm_subnet.bctf-subnet.id
+    subnet_id                     = module.azure-vnet.vnet_subnets[0]
     private_ip_address_allocation = "Dynamic"
     public_ip_address_id          = azurerm_public_ip.bctf-pip.id
   }
@@ -75,10 +97,10 @@ resource "azurerm_network_security_group" "bctf-nsg" {
   tags                = local.tags
 }
 
-resource "azurerm_subnet_network_security_group_association" "bctf-nsg_to_subnet" {
-  subnet_id                 = azurerm_subnet.bctf-subnet.id
-  network_security_group_id = azurerm_network_security_group.bctf-nsg.id
-}
+# resource "azurerm_subnet_network_security_group_association" "bctf-nsg_to_subnet" {
+#   subnet_id                 = azurerm_subnet.bctf-subnet.id
+#   network_security_group_id = azurerm_network_security_group.bctf-nsg.id
+# }
 
 resource "azurerm_network_security_rule" "ssh-access" {
   name                        = "Allow-SSH"
@@ -108,7 +130,7 @@ resource "azurerm_key_vault" "bctf-kv" {
   network_acls {
     default_action             = "Deny"
     bypass                     = "AzureServices"
-    virtual_network_subnet_ids = [azurerm_subnet.bctf-subnet.id]
+    virtual_network_subnet_ids = module.azure-vnet.vnet_subnets
     ip_rules                   = ["${var.my_ip_address}"] # Your own IP address
   }
 }

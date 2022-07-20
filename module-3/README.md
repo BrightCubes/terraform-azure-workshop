@@ -20,9 +20,9 @@ And you can also earn **Bonus points**! These are not included in the full solut
 See how far you can get during the workshop:
 
 - **Level 1: Use functions to dynamically generate resources/properties**
-- **Level 2: Refactor code from monolith**
-- **Level 3: Store state in a remote backend**
-- **Level 4: Write a module**
+- **Level 2: Store state in a remote backend**
+- **Level 3: Work with modules in your Terraform configuration**
+- **Level 4: Turn your code into a reusable module**
 
 Some general tips before you start:
 
@@ -54,7 +54,7 @@ locals {
 Run `terraform plan` and verify this changes nothing to your configuration, but it makes your code a little bit nicer.<p>
 We are currently defining our tags in the `local.tags` block so they can be the same for all resources we deploy. But what if we want to allow users of our template to specify additional custom tags, or we want to have additional tags for specific resources?
 
-> Create a variable definition called `additional_tags` (use the correct type!) and ensure that it is added to all resources we create using the same `locals` block. Add a custom `key=value` tag to your `.tfvars` file. Run `terraform plan` to ensure all your resources are being **changed**.
+> Create a variable definition called `additional_tags` (use the correct type!) and ensure that it is added to all resources we create using the same `locals.tags` block. Add a custom `key=value` tag to your `.tfvars` file. Run `terraform plan` to ensure all your resources are being **changed**.
 
 <details>
 <summary>Solution</summary>
@@ -87,7 +87,7 @@ locals {
 
 </details>
 
-There may also be cases where you want to add parameters to your template that you want to have visible somewhere. An example we will explorer here is the VM shutdown schedule. You may want to let the user configure this shutdown schedule, but also show it in the tags on the Overview pane of your virtual machine in the Azure Portal to make it clear this is configured.<p>
+There may also be cases where you want to add parameters to your template that you want to have visible somewhere. An example we will explore here is the VM shutdown schedule. You may want to let the user configure this shutdown schedule, but also show it in the tags on the Overview pane of your virtual machine in the Azure Portal to make it clear this is configured.<p>
 
 > First find the way Terraform configures the automated shutdown schedules for Azure VMs. Next, create two variable definitions called `vm_shutdown_time` and `enable_auto_shutdown`. Add these variables to the shutdown schedule resource and add both variables to the tags of your Azure VM as a string in a `key=value` pair.
 
@@ -240,8 +240,106 @@ resource "azurerm_virtual_machine_data_disk_attachment" "bctf-vm-datadisk-attach
 
 </details>
 
-There are many more functions and arguments to experiment with, but this should give you a sneak peek into what is possible with Terraform. Let's move on to the next part and start preparing our code for turning it into a module!
+There are many more functions and arguments to experiment with, but this should give you a sneak peek into what is possible with Terraform.
 
-**Level 2: Refactor code from monolith**
+## Level 2: Store state in a remote backend
 
+By default, Terraform stores state locally in a file named terraform.tfstate. When working with Terraform in a team, use of a local file makes Terraform usage complicated because each user must make sure they always have the latest state data before running Terraform and make sure that nobody else runs Terraform at the same time, since Terraform locks the file during its operations.
+
+With remote state, Terraform writes the state data to a remote data store, which can then be shared between all members of a team. Terraform supports storing state in Terraform Cloud, HashiCorp Consul, Amazon S3, Azure Blob Storage, Google Cloud Storage, Alibaba Cloud OSS, and more. The place where the state is stored by Terraform is called a `backend`.
+
+By default, Terraform uses a backend called local, which stores state as a local file on disk. But in any use case where you are not the only person using the Terraform infrastructure, you should always configure a Terraform backend. In this module, we will configure an `azurerm` backend and store our Terraform state in an Azure storage account. Since the state file contains sensitive data that should be protected, we will prevent a meta situation where we store the Terraform state file in the same storage account as the one we create with our Terraform code. You should make sure that the storage account you use for Terraform state files is well protected. In this workshop we will use a pre-created storage account and storage container.
+
+> Create a file `backend.tf` containing an `azurerm` backend configuration. The storage account name is `bcworkshoptfstates` in resource group `bctf-workshop-rg` and the container name is `tfstates`. You can think of your own `key` (filename) and you can just use your Azure CLI authentication mechanism. Run `terraform init` again to initialize the new backend configuration.
+
+<details>
+<summary>Solution</summary>
+
+```hcl
+# backend.tf
+terraform {
+  backend "azurerm" {
+    resource_group_name  = "bctf-workshop-rg"
+    storage_account_name = "bcworkshoptfstates"
+    container_name       = "tfstates"
+    key                  = "tommy.terraform.tfstate"
+  }
+}
+```
+</details>
+
+You will be asked if you want to copy the existing state file. Enter "yes" since we do want to migrate from a local to a remote backend! Check the contents of your local `terraform.tfstate` file and verify that the file is now empty, since we've moved this state file to the storage account.
+
+In most CI/CD scenarios you will use service principals or Azure CLI to authenticate to an `azurerm` backend. However, you can also specify any of the lines in the backend configuration as a command-line parameter or through a separate file, after with you can pass them to the `terraform init` command using `-backend-config=PATH` (for files) or `-backend-config="KEY=VALUE"` for inline variables, such as `-backend-config="access_key=$SUPERSECRETKEY_IN_MY_DEVOPS_RUNNER"`.
+
+## Level 3: Work with modules in your Terraform configuration
+
+As mentioned before, modules are reusable pieces of Terraform code. In the [Terraform registry](https://registry.terraform.io/browse/modules?provider=azurerm) there are a huge amount of modules available for use in your Terraform code. You can use these, but also use any Git-based or path-based reference to a folder containing Terraform code. In the next exercises, we will work with public (Git) modules, and later turn our own Terraform configuration into a module and reference to it based on its path.
+
+Let's change our configuration a bit. We are currently using an existing virtual network referencing a `data` source, but let's create our own virtual network and subnets using the official Azure VNet module that is maintained by Microsoft.
+
+> Find the Azure/vnet module in the Terraform Registry. Check out the code for the module on GitHub to see how it works. Replace the virtual network and subnet resource in our `main.tf` with a `module` block. Add a second subnet. Be sure to change the `address_space` and `subnet_prefixes`. Assign the network security group we created earlier to both subnets. Also add our tags block. Make sure you update the existing references to the virtual network and subnet to reflect the `output` values of the module.
+
+<details>
+<summary>Solution</summary>
+
+```hcl
+module "azure-vnet" {
+  source              = "Azure/vnet/azurerm"
+
+  vnet_name           = "${local.rootname}-vnet"
+  resource_group_name = azurerm_resource_group.bctf-rg.name
+  address_space       = ["10.5.0.0/16"]
+  subnet_prefixes     = ["10.5.90.0/24", "10.5.100.0/24"]
+  subnet_names        = ["subnet1", "subnet2"]
+
+  subnet_service_endpoints = {
+    subnet1 = ["Microsoft.Storage", "Microsoft.Sql", "Microsoft.KeyVault"]
+    subnet2 = ["Microsoft.KeyVault"]
+  }
+
+  nsg_ids = {
+    subnet1 = azurerm_network_security_group.bctf-nsg.id
+    subnet2 = azurerm_network_security_group.bctf-nsg.id
+  }
+
+  tags = local.tags
+}
+
+resource "azurerm_network_interface" "bctf-nic" {
+...
+  ip_configuration {
+    name                          = "${local.rootname}-nic-cfg"
+    subnet_id                     = module.azure-vnet.vnet_subnets[0]
+...
+
+resource "azurerm_key_vault" "bctf-kv" {
+...
+  network_acls {
+    default_action             = "Deny"
+    bypass                     = "AzureServices"
+    virtual_network_subnet_ids = module.azure-vnet.vnet_subnets
+    ip_rules                   = ["${var.my_ip_address}"] # Your own IP address
+  }
+...
+```
+</details>
+
+**NOTE:** You will probably run into some issues with your NIC and the virtual machine not being able to handle the removal of your existing subnet. For the sake of this workshop you can choose to keep them to prevent the errors, or you can use `terraform taint` to force recreation of the NIC and the VM when you run `terraform apply` next.
+
+Let's move on to the next part and start preparing our code for turning it into a module!
+
+## Level 4: Turn your code into a reusable module
+
+As you start working with Terraform more and more, you will start re-using a lot of different templates. Think of situations where you want to separate environments or share templates with your colleagues. Instead of sharing your Terraform code, you can also turn your templates into modules. Hashicorp mentions a number of advantages in their documentation [here](https://learn.hashicorp.com/tutorials/terraform/module?in=terraform/modules):
+
+- Organize configuration - Modules make it easier to navigate, understand, and update your configuration by keeping related parts of your configuration together. Even moderately complex infrastructure can require hundreds or thousands of lines of configuration to implement. By using modules, you can organize your configuration into logical components.
+
+- Encapsulate configuration - Another benefit of using modules is to encapsulate configuration into distinct logical components. Encapsulation can help prevent unintended consequences, such as a change to one part of your configuration accidentally causing changes to other infrastructure, and reduce the chances of simple errors like using the same name for two different resources.
+
+- Re-use configuration - Writing all of your configuration from scratch can be time consuming and error prone. Using modules can save time and reduce costly errors by re-using configuration written either by yourself, other members of your team, or other Terraform practitioners who have published modules for you to use. You can also share modules that you have written with your team or the general public, giving them the benefit of your hard work.
+
+- Provide consistency and ensure best practices - Modules also help to provide consistency in your configurations. Not only does consistency make complex configurations easier to understand, it also helps to ensure that best practices are applied across all of your configuration. For instance, cloud providers give many options for configuring object storage services, such as Amazon S3 or Google Cloud Storage buckets. There have been many high-profile security incidents involving incorrectly secured object storage, and given the number of complex configuration options involved, it's easy to accidentally misconfigure these services.
+
+Using modules can help reduce these errors. For example, you might create a module to describe how all of your organization's public website buckets will be configured, and another module for private buckets used for logging applications. Also, if a configuration for a type of resource needs to be updated, using modules allows you to make that update in a single place and have it be applied to all cases where you use that module.
 
