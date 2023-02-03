@@ -4,6 +4,7 @@ my_ip_address = "45.94.174.33/32"
 additional_tags = {
   "MyTerraformSkillLevel" = "Uberhigh"
 }
+allowOfficeVPN = true
 enable_vm_shutdown = true
 vm_shutdown_time   = 2000
 data_disks = {

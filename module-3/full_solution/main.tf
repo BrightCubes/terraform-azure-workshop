@@ -116,6 +116,21 @@ resource "azurerm_network_security_rule" "ssh-access" {
   network_security_group_name = azurerm_network_security_group.bctf-nsg.name
 }
 
+resource "azurerm_network_security_rule" "vre-allow_office_vpn" {
+  count                       = var.allowOfficeVPN ? 1 : 0
+  name                        = "Allow-Office_VPN"
+  priority                    = 800
+  direction                   = "Inbound"
+  access                      = "Allow"
+  protocol                    = "Tcp"
+  source_port_range           = "*"
+  destination_port_range      = "22"
+  source_address_prefixes     = ["145.109.0.0/17", "145.18.0.0/16", "146.50.0.0/16"]
+  destination_address_prefix  = "*"
+  resource_group_name         = azurerm_resource_group.bctf-rg.name
+  network_security_group_name = azurerm_network_security_group.bctf-nsg.name
+}
+
 resource "azurerm_key_vault" "bctf-kv" {
   name                = "${local.trimmed_rootname}-kv"
   location            = var.location

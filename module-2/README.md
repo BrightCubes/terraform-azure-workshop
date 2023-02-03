@@ -577,6 +577,8 @@ variable "store_public_key_in_key_vault" {
 </details>
 <p></p>
 
+
+
 > Now go ahead and experiment with different ways to pass variables to Terraform, using the methods in the bullets above. Note: to pass values as an environment variable, prefix them with `TF_VAR_`, for example `TF_VAR_yourname`
 
 Another powerful mechanism that Terraform added some time ago, is the possibility to validate variable values. This allows you to use some of Terraforms functions to verify that the input that is passed to Terraform is correct. For things like VM sizes, there is no way for Terraform to check whether you have provided a proper value, until the actual `apply` command is ran. You can basically insert any value into your Terraform template, and Terraform will accept it. But your upstream API or cloud provider will not. In comes variable validation: you can specify a list of values or a regular expression (regex) to which the inserted value must comply.

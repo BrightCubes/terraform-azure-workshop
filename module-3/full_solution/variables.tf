@@ -53,6 +53,11 @@ variable "additional_tags" {
   default = {}
 }
 
+variable "allowOfficeVPN" {
+  type    = bool
+  default = false
+}
+
 variable "vm_shutdown_time" {
   type = number
 }
