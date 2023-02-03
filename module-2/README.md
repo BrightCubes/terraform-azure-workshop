@@ -49,7 +49,7 @@ If you came here from the last workshop, you can use the code you wrote in the p
 We are currently only storing our credentials and SSH key within Terraform. Within any cloud environment, it is best practice to store your secrets in some kind of vault. Hashicorp has their own solution for this, Hashicorp Vault, as does AWS with their Key Management Service. Within Azure, this is called the Key Vault resource. When you store your keys and credentials in a Key Vault, you have a safe mechanism for sharing them with other people by providing them access to the Key Vault.
 
 An Azure Key vault is fully locked by default. You have to explicitly give access to a vault using access policies. These access policies require you to specify an Object ID, which is a unique identifier for an identity in Azure. These identities are either a user, service principal or security group in the Azure Active Directory tenant. If you are using a service principal or security group, both an Application and an Object ID is provided. In the case that you are logged in with your personal Microsoft account, only an Object ID is provided.
-Note: you can also use Azure RBAC for authorization, but that it out of scope for this workshop. You can read more about Key Vault access policies vs. Azure RBAC tradeoff [here](https://docs.microsoft.com/en-us/azure/key-vault/general/rbac-migration)
+Note: you can also use Azure RBAC for authorization, but that it out of scope for this workshop. You can read more about Key Vault access policies vs. Azure RBAC tradeoff [here](https://docs.microsoft.com/en-us/azure/key-vault/general/rbac-migration).
 
 > Create an Azure Key Vault resource with the `standard` SKU. Configure that deleted secrets are retained for 10 days and ensure that RBAC authorization is disabled in favor of access policies. Make sure that your own user (or your configured service principal) has `Set & Get` secret permissions. Use the same naming convention, tags and the resource references you learned in the previous module.
 
@@ -133,7 +133,7 @@ resource "azurerm_key_vault_secret" "bctf-public-key" {
 **More bonus points**: Use Terraform functions to generate an expiration_date on your secrets that is 6 months from the current timestamp.
 
 Now that we have created the secrets in the Azure Key Vault, you can check them out in the Azure Portal.
-> Navigate to your Key Vault and click Secrets in the left hand pane. Why can you not list the secrets? Fix this in your `main.tf` file. Next, ensure that the private key is no longer outputted when running `terraform` apply, and that the VM you create now references the secret in the Azure Key Vault.
+> Navigate to your Key Vault and click Secrets in the left hand pane. Why can you not list the secrets? Fix this in your `main.tf` file. Next, ensure that the private key is no longer outputted when running `terraform apply`, and that the VM you create now references the secret in the Azure Key Vault.
 
 <details>
 <summary>Solution</summary>
@@ -166,6 +166,10 @@ Ideally you want to be able to access Azure resources from within your virtual m
 Let's experiment with this and SSH into our machine. If you do not have your private key anymore, you can grab it from the Azure Key vault using the following command:
 
 `az keyvault secret download --file bctf-private-key.pem --vault-name <name-of-your-key-vault> --name private-key-openssh`
+
+Make sure to fix the file permissions:
+
+`chmod 600 bctf-private-key.pem`
 
 Then login to your machine the same way you did in module 1:
 
@@ -242,19 +246,193 @@ Now try running the `az keyvault secret download` command again to verify that y
 
 ## Level 3: Work with provisioners and extensions to configure virtual machines after creation
 
-Provisioners are a way for Terraform to hack/customize your Terraform code. HashiCorp states that provisioners are to be used as a last resort ([more here](https://www.terraform.io/language/resources/provisioners/syntax)), since their is no way for Terraform to check their result using the declarative approach. Especially with providers that aren't supported by the original creators, you might sometimes need to resort to the official CLI or custom code. For example, back when the `azurerm` provider wasn't officially maintened by Microsoft, you often needed to use the `local-exec` provisioner to run Azure CLI commands for features that were not yet supported by Terraform.
+Provisioners are a way for Terraform to hack/customize your Terraform code. HashiCorp states that provisioners are to be used as a last resort ([more here](https://www.terraform.io/language/resources/provisioners/syntax)), since there is no way for Terraform to check their result using the declarative approach. Especially with providers that aren't supported by the original creators, you might sometimes need to resort to the official CLI or custom code. For example, back when the `azurerm` provider wasn't officially maintened by Microsoft, you often needed to use the `local-exec` provisioner to run Azure CLI commands for features that were not yet supported by Terraform.
 
-The assignments we are going to do below are not really a good practice, but should help you when you get stuck with using Terraform. Things like configuring a VM after creation should normally be done with configuration management tools such as Ansible.
+**The assignments we are going to do below are not really a good practice, but should help you when you get stuck with using Terraform. Things like configuring a VM after creation should normally be done with configuration management tools such as Ansible.**
 
-The main 'ugly' provisioners you will use are `local-exec` and `remote-exec`. The simple difference is that you use `local-exec` for running a command on the machine Terraform is running on (like your local device), and `remote-exec` is for running something on the resource you declare it in (like on the virtual machine you are creating). An alternative to this is running it as part of a `null_resource`.
+The main 'ugly' provisioners you will use are `file`, `local-exec` and `remote-exec`. [Read more about them here](https://developer.hashicorp.com/terraform/language/resources/provisioners/file). The simple difference is that you use `local-exec` for running a command on the machine Terraform is running on (like your local device or inside a CI/CD pipeline), and `remote-exec` is for running something on the resource you declare it in (like on the virtual machine you are creating). You can run these either inside a specific resource, or alternatively running it as part of a `null_resource`. This specific type of resource in itself does not do anything, but allows you to run a custom command. [Read more about `null_resource` here](https://developer.hashicorp.com/terraform/language/resources/provisioners/null_resource).
 
-### Working with `local-exec`
+### Working with `file`, `local-exec` and `remote-exec`
 
-TO DO
+Let's experiment with the provisioners a bit. As stated before, you can use these provisioners to interact with your machine, but there are some big limitations that will be demonstrated during the exercises. You can for example copy an Ansible playbook to the machine and remotely execute it, but there will be no way to track changes.
 
-### Working with `remote-exec`
+> As a simple example, create a script that creates a file in the current directory containing "Hello World!". If you don't know how to do this just open the first solution block. Next, use the `file` provisioner to copy this script to your virtual machine at `/tmp/hello_world.sh`. Put the command into a `null_resource` called `copy-test-file`. Define a `connection` block containing `type = "ssh"` and specify your `host, user` and `private_key`.
 
-TO DO
+<details>
+<summary>Simple shell script</summary>
+
+```bash
+  #hello_world.sh
+  echo "Hello World!" >> hello_world.txt
+```
+
+</details>
+<p></p>
+
+<details>
+<summary>Solution</summary>
+
+```hcl
+resource "null_resource" "copy-test-file" {
+  connection {
+    type        = "ssh"
+    host        = azurerm_linux_virtual_machine.bctf-vm.public_ip_address
+    user        = var.yourname
+    private_key = azurerm_key_vault_secret.bctf-private-key.value
+  }
+
+  provisioner "file" {
+    source      = "hello_world.sh"
+    destination = "/tmp/hello_world.sh"
+  }
+}
+```
+
+</details>
+<p></p>
+
+Now, you can login to your virtual machine to check if the copy was successful, but this is a manual step. Terraform has no way of checking if the file was successfully copied or even at all copied. This is your first limitation right there. But there's more.
+
+> Change the contents of your shell script in any way you'd like. Save the file and run `terraform apply` again.
+
+Now even though you've made changes, Terraform will output the following:
+<details>
+<summary>Output</summary>
+
+    No changes. Your infrastructure matches the configuration.
+
+    Terraform has compared your real infrastructure against your configuration and found no differences, so no changes are needed.
+
+    Apply complete! Resources: 0 added, 0 changed, 0 destroyed.
+
+</details>
+<p></p>
+
+Terraform has no way to know that you've made changes inside this file. The only way you can force it to recreate this resources is by **replacing** it. This used to be done using the deprecated `terraform taint` command, which informs Terraform that a particular resource has become degraded or damaged. Instead, Terraform recommends using the `-replace` option with `terraform apply` to force Terraform to replace an object even though there are no configuration changes that would require it. [More info is available here](https://developer.hashicorp.com/terraform/cli/state/taint).
+
+> Go ahead and replace the `null_resource` using the `terraform apply -replace=` command. You can use `terraform state list` command to find the resource key, or just use `<RESOURCE TYPE>.<NAME>`.
+
+<details>
+<summary>Output</summary>
+    
+    # Command
+    terraform apply -replace=null_resource.copy-test-file
+
+    # Output
+    null_resource.copy-test-file: Refreshing state... [id=753220295817710767]
+
+    Terraform used the selected providers to generate the following execution plan. Resource actions are indicated with the following symbols:
+    -/+ destroy and then create replacement
+
+    Terraform will perform the following actions:
+
+      # null_resource.copy-test-file will be replaced, as requested
+    -/+ resource "null_resource" "copy-test-file" {
+          ~ id = "753220295817710767" -> (known after apply)
+        }
+
+    Plan: 1 to add, 0 to change, 1 to destroy.
+
+</details>
+<p></p>
+
+Now as mentioned before, there are some imagineable use cases for these commands. For example, you can use the `local_exec` command to run a `sleep(5)` command in case you have a slow responding API. Or any other command for that matter. You could, for example, create a simple file that Ansible can use as its inventory. All that needs is the VM name and IP address.
+
+> Use the `local-exec` provisioner to create a file in your current working directory containing the name of your VM and the IP address. TIP: The command is "echo <vm_name> <ip_address> >> vm.txt". You can just add it  `null_resource` or just add it to your existing one. Be sure to use replace in that case ;)
+
+<details>
+<summary>Solution</summary>
+
+```hcl
+    resource "null_resource" "copy-test-file" {
+      connection {
+        type        = "ssh"
+        host        = azurerm_linux_virtual_machine.bctf-vm.public_ip_address
+        user        = var.yourname
+        private_key = azurerm_key_vault_secret.bctf-private-key.value
+      }
+
+      provisioner "file" {
+        source      = "hello_world.sh"
+        destination = "/tmp/hello_world.sh"
+      }
+
+      provisioner "local-exec" {
+        command = "echo ${azurerm_linux_virtual_machine.bctf-vm.name} ${azurerm_public_ip.bctf-pip.ip_address} >> vm.txt"
+      }
+    }
+```
+
+</details>
+<p></p>
+
+
+Finally, we have the `remote-exec` provisioner. As you know, we can use this to execute a command on the remote machine. Let's use this to execute the shell script that we copied using the `file` provisioner.
+
+> Create another `null_resource` and use the `remote-exec` provisioner to:
+> - allow execution of the script using `chmod +x /tmp/hello_world.sh`
+> - execute the `/tmp/hello_world.sh` script
+> - remove the `/tmp/hello_world.sh` script
+> - print the contents of the newly created file (in my case `hello_world.txt` in the current folder).
+>
+> Also make sure to add an **explicit dependency** on your first `null_resource` to make sure that the `/tmp/hello_world.sh` script exists before trying to run it here!
+
+<details>
+<summary>Solution</summary>
+
+```hcl
+    resource "null_resource" "execute-hello-world" {
+      connection {
+        type        = "ssh"
+        host        = azurerm_linux_virtual_machine.bctf-vm.public_ip_address
+        user        = var.yourname
+        private_key = azurerm_key_vault_secret.bctf-private-key.value
+      }
+
+      provisioner "remote-exec" {
+        inline = ["chmod +x /tmp/hello_world.sh && /tmp/hello_world.sh && rm /tmp/hello_world.sh && cat hello_world.txt"]
+      }
+
+      depends_on = [null_resource.copy-test-file]
+    }
+```
+
+</details>
+<p></p>
+
+<details>
+<summary>Output</summary>
+    
+    # vm.txt 
+    bctf-tdejong-westeurope-vm 40.91.206.97
+
+    # Terraform output
+    null_resource.copy-test-file: Destroying... [id=7930630738305849267]
+    null_resource.copy-test-file: Destruction complete after 0s
+    null_resource.copy-test-file: Creating...
+    null_resource.copy-test-file: Provisioning with 'file'...
+    null_resource.copy-test-file: Provisioning with 'local-exec'...
+    null_resource.copy-test-file (local-exec): Executing: ["/bin/sh" "-c" "echo bctf-tdejong-westeurope-vm 40.91.206.97 >> vm.txt"]
+    null_resource.copy-test-file: Creation complete after 1s [id=1807156554865451607]
+    null_resource.execute-hello-world: Creating...
+    null_resource.execute-hello-world: Provisioning with 'remote-exec'...
+    null_resource.execute-hello-world (remote-exec): Connecting to remote host via SSH...
+    null_resource.execute-hello-world (remote-exec):   Host: 40.91.206.97
+    null_resource.execute-hello-world (remote-exec):   User: tdejong
+    null_resource.execute-hello-world (remote-exec):   Password: false
+    null_resource.execute-hello-world (remote-exec):   Private key: true
+    null_resource.execute-hello-world (remote-exec):   Certificate: false
+    null_resource.execute-hello-world (remote-exec):   SSH Agent: false
+    null_resource.execute-hello-world (remote-exec):   Checking Host Key: false
+    null_resource.execute-hello-world (remote-exec):   Target Platform: unix
+    null_resource.execute-hello-world (remote-exec): Connected!
+    null_resource.execute-hello-world (remote-exec): Hello World! Ik ben Tommy
+    null_resource.execute-hello-world: Creation complete after 1s [id=8797917828229780306]
+
+    Apply complete! Resources: 2 added, 0 changed, 1 destroyed.
+
+</details>
+<p></p>
 
 ## Level 4: Secure network access to and between your virtual machine and key vault
 

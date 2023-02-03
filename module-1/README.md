@@ -433,7 +433,7 @@ Now, when you run `terraform apply`, both resources need to be recreated since w
 Terraform can also deal with existing resources. You can use `terraform import` to import existing resources into the state file, but there's a reason this feature has seen little development progress. You should use Terraform for resources that are created by Terraform itself, and not let it manage any resources it has not created itself.<p>
 Instead, use *data sources* to reference existing resources in your Terraform code. 
 
-> In this exercise, start with referencing the existing `bctf-workshop-vnet` in the `bctf-workshop-rg` resource group. Add this to your `main.tf` file.
+> In this exercise, start with referencing the existing `bctf-workshop-vnet` in the `bctf-workshop-rg` resource group. Add this to your `main.tf` file. **NOTE!** If you're using your own subscription, this VNet and RG do not exist of course. Create them manually in the Azure portal or find another way to create them and reference them as a data source.
 
 TIP: Start looking around in the [provider documentation](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs) to find the documentation on the `azurerm_virtual_network` resource.
 
@@ -654,7 +654,7 @@ If this does not work, try using the ssh-agent combined with the `terraform outp
 ```
 eval $(ssh-agent -s) && terraform output -raw private_ssh_key | tr -d '\r' | ssh-add -
 ```
-Now you can connect without the `-i` flag referencing your key, so connecting is `ssh -i <your_name>@<ip_address>`
+Now you can connect without the `-i` flag referencing your key, so connecting is `ssh <your_name>@<ip_address>`
 
 NOTE: If you're having difficulties with connecting using a private key, try using password authentication instead. See the solution block above for both methods. The VM will need to be recreated if you change this, but that is not an issue.
 

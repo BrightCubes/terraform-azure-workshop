@@ -132,7 +132,7 @@ resource "tls_private_key" "bctf-ssh-key" {
 }
 
 resource "azurerm_key_vault_secret" "bctf-private-key" {
-  name            = "private-key-openssh"
+  name            = "private-key"
   value           = tls_private_key.bctf-ssh-key.private_key_openssh
   key_vault_id    = azurerm_key_vault.bctf-kv.id
   expiration_date = "2022-12-31T00:00:00Z"
@@ -144,7 +144,7 @@ resource "azurerm_key_vault_secret" "bctf-private-key" {
 }
 
 resource "azurerm_key_vault_secret" "bctf-public-key" {
-  name            = "public-key-openssh"
+  name            = "public-key"
   value           = tls_private_key.bctf-ssh-key.public_key_openssh
   key_vault_id    = azurerm_key_vault.bctf-kv.id
   expiration_date = "2022-12-31T00:00:00Z"
@@ -194,4 +194,37 @@ resource "azurerm_linux_virtual_machine" "bctf-vm" {
   boot_diagnostics {
     storage_account_uri = azurerm_storage_account.bctf-sa.primary_blob_endpoint
   }
+}
+
+resource "null_resource" "copy-test-file" {
+  connection {
+    type        = "ssh"
+    host        = azurerm_linux_virtual_machine.bctf-vm.public_ip_address
+    user        = var.yourname
+    private_key = azurerm_key_vault_secret.bctf-private-key.value
+  }
+
+  provisioner "file" {
+    source      = "hello_world.sh"
+    destination = "/tmp/hello_world.sh"
+  }
+
+  provisioner "local-exec" {
+    command = "echo ${azurerm_linux_virtual_machine.bctf-vm.name} ${azurerm_public_ip.bctf-pip.ip_address} >> vm.txt"
+  }
+}
+
+resource "null_resource" "execute-hello-world" {
+  connection {
+    type        = "ssh"
+    host        = azurerm_linux_virtual_machine.bctf-vm.public_ip_address
+    user        = var.yourname
+    private_key = azurerm_key_vault_secret.bctf-private-key.value
+  }
+
+  provisioner "remote-exec" {
+    inline = ["chmod +x /tmp/hello_world.sh && /tmp/hello_world.sh && rm /tmp/hello_world.sh && cat hello_world.txt"]
+  }
+
+  depends_on = [null_resource.copy-test-file]
 }
