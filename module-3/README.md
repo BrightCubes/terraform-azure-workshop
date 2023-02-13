@@ -20,9 +20,10 @@ And you can also earn **Bonus points**! These are not included in the full solut
 See how far you can get during the workshop:
 
 - **Level 1: Use functions and expressions to dynamically generate resources/properties**
-- **Level 2: Store state in a remote backend**
-- **Level 3: Work with modules in your Terraform configuration**
+- **Level 2: Work with modules in your Terraform configuration**
+- **Level 3: Store state in a remote backend**
 - **Level 4: Turn your code into a reusable module**
+- **Level 5: Get certified!**
 
 Some general tips before you start:
 
@@ -89,7 +90,7 @@ locals {
 
 There may also be cases where you want to add parameters to your template that you want to have visible somewhere. An example we will explore here is the VM shutdown schedule. You may want to let the user configure this shutdown schedule, but also show it in the tags on the Overview pane of your virtual machine in the Azure Portal to make it clear this is configured.<p>
 
-> First find the way Terraform configures the automated shutdown schedules for Azure VMs. Next, create two variable definitions called `vm_shutdown_time` and `enable_auto_shutdown`. Add these variables to the shutdown schedule resource and add both variables to the tags of your Azure VM as a string in a `key=value` pair.
+> First find the way Terraform configures the automated shutdown schedules for Azure VMs. (HINT: look for Azure DevTest). Next, create two variable definitions called `vm_shutdown_time` and `enable_auto_shutdown`. Add these variables to the shutdown schedule resource and add both variables to the tags of your Azure VM as a string in a `key=value` pair.
 
 **Bonus points**: Create a variable validation rule to validate that the value inputted to the `vm_shutdown_time` variable is of the format Terraform expects for that specific property argument.
 
@@ -283,56 +284,136 @@ resource "azurerm_virtual_machine_data_disk_attachment" "bctf-vm-datadisk-attach
 
 There are many more functions and arguments to experiment with, but this should give you a sneak peek into what is possible with Terraform.
 
-## Level 2: Store state in a remote backend
+## Level 2: Work with modules in your Terraform configuration
 
-By default, Terraform stores state locally in a file named terraform.tfstate. When working with Terraform in a team, use of a local file makes Terraform usage complicated because each user must make sure they always have the latest state data before running Terraform and make sure that nobody else runs Terraform at the same time, since Terraform locks the file during its operations.
+As mentioned before, modules are reusable pieces of Terraform code. In the [Terraform Registry](https://registry.terraform.io/browse/modules?provider=azurerm) there are a huge amount of modules available for use in your Terraform code. You can use these, but also use any Git-based or path-based reference to a folder containing Terraform code. In the next exercises, we will work with public (Git) modules, and later turn our own Terraform configuration into a module and reference to it based on its path.
 
-With remote state, Terraform writes the state data to a remote data store, which can then be shared between all members of a team. Terraform supports storing state in Terraform Cloud, HashiCorp Consul, Amazon S3, Azure Blob Storage, Google Cloud Storage, Alibaba Cloud OSS, and more. The place where the state is stored by Terraform is called a `backend`.
+When you start working with Terraform, you will often find that you can use modules to re-use parts of your Terraform templates. If you want to compare these modules to principles in software engineering, they are mostly similar to **functions**. Instead of having to copy a piece of your code across your program, you can use *modules* to re-use parts of your code across your infrastructure configuration.
 
-By default, Terraform uses a backend called local, which stores state as a local file on disk. But in any use case where you are not the only person using the Terraform infrastructure, you should always configure a Terraform backend. In this module, we will configure an `azurerm` backend and store our Terraform state in an Azure storage account. Since the state file contains sensitive data that should be protected, we will prevent a meta situation where we store the Terraform state file in the same storage account as the one we create with our Terraform code. You should make sure that the storage account you use for Terraform state files is well protected. In this workshop we will use a pre-created storage account and storage container.
+Say you want to replicate the Terraform code you wrote to deploy a virtual machine to multiple environments, you want to prevent having to copy your code to a folder called *dev* and a folder called *prod*. By using modules, you can define a top-level template and re-use it for a dev and a prod configuration. For a more extensive explanation, [check out this great post by Gruntwork](https://blog.gruntwork.io/how-to-create-reusable-infrastructure-with-terraform-modules-25526d65f73d).
 
-> Create a file `backend.tf` containing an `azurerm` backend configuration. The storage account name is `bcworkshoptfstates` in resource group `bctf-workshop-rg` and the container name is `tfstates`. You can think of your own `key` (filename) and you can just use your Azure CLI authentication mechanism. Run `terraform init` again to initialize the new backend configuration.
+Technically every Terraform configuration you write can be turned into a module. Your variables become the module inputs, and your outputs become the module outputs. The values that you assign using your `terraform.tfvars` file are now the inputs for your new module. The outputs that you defined in your `outputs.tf` file can now be used in your Terraform configuration.
+
+This may sound confusing, so let's practice with some examples.
+
+### Using local modules
+
+We can get started with a very simple example: a naming convention module. As mentioned before, a module can be as little as a template that takes **module inputs** through its **variables**, and can generate **module outputs** using its **outputs**. Any set of Terraform configuration files in a folder (as you've been working now) can be used as a module.
+
+> Create some simple Terraform configuration in a new folder called `name_module` in the folder where you are have been writing your code up until now. This Terraform code takes two variables you currently use in your naming convention: `yourname` and `location`. What it outputs is the value you currently use as `local.rootname`. Give the output the name `nameconv`. TIP: Try out Terraform's `join` function for concatenating your values.
 
 <details>
 <summary>Solution</summary>
 
-```hcl
-# backend.tf
-terraform {
-  backend "azurerm" {
-    resource_group_name  = "bctf-workshop-rg"
-    storage_account_name = "bcworkshoptfstates"
-    container_name       = "tfstates"
-    key                  = "tommy.terraform.tfstate"
-  }
-}
+```bash
+## Folder structure
+# New module
+-modules
+--name_module
+---main.tf # can also be split up in multiple .tf files
+# Code up until now
+main.tf
+outputs.tf
+terraform.tfvars
+variables.tf
 ```
+
+```hcl
+# main.tf
+variable "yourname" {}
+variable "location" {}
+
+output "nameconv" {
+  value = join("-",[
+    "bctf",
+    var.yourname,
+    var.location])
+} 
+# same value as you had before with 
+# local.rootname = "bctf-${var.yourname}-${var.location}"
+```
+
 </details>
 
-You will be asked if you want to copy the existing state file. Enter "yes" since we do want to migrate from a local to a remote backend! Check the contents of your local `terraform.tfstate` file and verify that the file is now empty, since we've moved this state file to the storage account.
+To use this **re-usable module** (child) inside your **root module** (parent), where you've been working in until now, use the following syntax:
 
-In most CI/CD scenarios you will use service principals or Azure CLI to authenticate to an `azurerm` backend. However, you can also specify any of the lines in the backend configuration as a command-line parameter or through a separate file, after with you can pass them to the `terraform init` command using `-backend-config=PATH` (for files) or `-backend-config="KEY=VALUE"` for inline variables, such as `-backend-config="access_key=$SUPERSECRETKEY_IN_MY_DEVOPS_RUNNER"`.
+```hcl
+module "<NAME>" {
+  source = "<SOURCE>"
 
-## Level 3: Work with modules in your Terraform configuration
+  [CONFIG ...]
+}
+```
 
-As mentioned before, modules are reusable pieces of Terraform code. In the [Terraform registry](https://registry.terraform.io/browse/modules?provider=azurerm) there are a huge amount of modules available for use in your Terraform code. You can use these, but also use any Git-based or path-based reference to a folder containing Terraform code. In the next exercises, we will work with public (Git) modules, and later turn our own Terraform configuration into a module and reference to it based on its path.
+Here `<NAME>` is the same identifier you have used up until now to identify `resources`, `<SOURCE>` is the path where the module code can be found (in this case `name_module`), and `CONFIG` consists of your values for the variables for your template. For example, you can adjust your `main.tf` and use the `name_module` in it as follows:
 
-Let's change our configuration a bit. We are currently using an existing virtual network referencing a `data` source, but let's create our own virtual network and subnets using the official Azure VNet module that is maintained by Microsoft.
+```hcl
+# main.tf
+module "naming_convention" {
+  source = "./modules/name_module"
 
-> Find the Azure/vnet module in the Terraform Registry. Check out the code for the module on GitHub to see how it works. Replace the virtual network and subnet resource in our `main.tf` with a `module` block. Add a second subnet. Be sure to change the `address_space` and `subnet_prefixes`. Assign the network security group we created earlier to both subnets. Also add our tags block. Make sure you update the existing references to the virtual network and subnet to reflect the `output` values of the module.
+  location = "westeurope"
+  yourname = "tdejong"
+}
+```
+
+You can now use the module output, called `nameconv`, like this: `module.<NAME>.<OUTPUT_NAME>`. So, for our module, that becomes: `module.naming_convention.nameconv`. Go ahead and made the adjustment to your code and replace every instance of `local.rootname` with this, and run `terraform apply`.
+
+You will see that Terraform has detected a new module. Whether this module is local, from the Terraform registry or from a Git repository, Terraform will always have to initialize the module, which basically means that it will download a local copy of the module. Run `terraform init` now and see that it has initialized your module together with your configured providers:
+
+<details>
+<summary>Output</summary>
+
+```hcl
+Initializing modules...
+- naming_convention in name_module
+
+Initializing the backend...
+
+Initializing provider plugins...
+- Reusing previous version of hashicorp/azurerm from the dependency lock file
+- Reusing previous version of hashicorp/tls from the dependency lock file
+- Using previously-installed hashicorp/azurerm v3.43.0
+- Using previously-installed hashicorp/tls v4.0.4
+
+Terraform has been successfully initialized!
+
+You may now begin working with Terraform. Try running "terraform plan" to see
+any changes that are required for your infrastructure. All Terraform commands
+should now work.
+
+If you ever set or change modules or backend configuration for Terraform,
+rerun this command to reinitialize your working directory. If you forget, other
+commands will detect it and remind you to do so if necessary.
+```
+
+</details>
+
+Check out the `modules.json` file at `.terraform\modules\modules.json` in your working directory to see how Terraform is behaving under the hood. Run `terraform apply` again to run your changes. **Nothing should change**, but our configuration now uses the `name_module` to generate a naming convention for your resources. Now, when you that developing new modules or new Terraform configs, you can use this module to have the same naming convention everywhere without duplicating any code in `local` blocks between different configurations.
+
+Now let's continue by making this a bit more complex, and using modules that are publicly available.
+
+### Using public modules
+
+The Terraform Registry is one place where you can find public modules, but you often also see that modules are shared between teams in a company. These are then often shared in a shared Git repository. But now we will only practice with public modules.
+Let's change our configuration a bit. We are currently using an existing virtual network referencing a `data` source, but let's create our own virtual network and subnets using the official Azure VNet module that is maintained by Microsoft. **If you are using your own subscription and have already created your own VNet, you can skip to the next assignment. Or do it anyway, whatever you want :)**
+
+> Find the Azure/vnet module in the Terraform Registry. Check out the code for the module on GitHub to see how it works, and reference the `Inputs` to check which variables are required and which are optional. Replace the virtual network and subnet resource in our `main.tf` with a `module` block. Add a second subnet. Be sure to change the `address_space` and `subnet_prefixes`. Assign the network security group we created earlier to both subnets. Also add our tags block. Make sure you update the existing references to the virtual network and subnet to reflect the `output` values of the module.
 
 <details>
 <summary>Solution</summary>
 
 ```hcl
 module "azure-vnet" {
-  source              = "Azure/vnet/azurerm"
+  source = "Azure/vnet/azurerm" # simple syntax for Terraform Registry modules
 
-  vnet_name           = "${local.rootname}-vnet"
+  vnet_name           = "${module.naming_convention.nameconv}-vnet"
   resource_group_name = azurerm_resource_group.bctf-rg.name
-  address_space       = ["10.5.0.0/16"]
-  subnet_prefixes     = ["10.5.90.0/24", "10.5.100.0/24"]
+  address_space       = ["10.1.0.0/16"]
+  subnet_prefixes     = ["10.1.90.0/24", "10.1.100.0/24"]
   subnet_names        = ["subnet1", "subnet2"]
+  use_for_each        = true
+  vnet_location       = var.location
 
   subnet_service_endpoints = {
     subnet1 = ["Microsoft.Storage", "Microsoft.Sql", "Microsoft.KeyVault"]
@@ -350,7 +431,7 @@ module "azure-vnet" {
 resource "azurerm_network_interface" "bctf-nic" {
 ...
   ip_configuration {
-    name                          = "${local.rootname}-nic-cfg"
+    name                          = "${module.naming_convention.nameconv}-nic-cfg"
     subnet_id                     = module.azure-vnet.vnet_subnets[0]
 ...
 
@@ -364,23 +445,208 @@ resource "azurerm_key_vault" "bctf-kv" {
   }
 ...
 ```
+
 </details>
 
-**NOTE:** You will probably run into some issues with your NIC and the virtual machine not being able to handle the removal of your existing subnet. For the sake of this workshop you can choose to keep them to prevent the errors, or you can use `terraform taint` to force recreation of the NIC and the VM when you run `terraform apply` next.
+**NOTE:** You will probably run into some issues with your NIC and the virtual machine not being able to handle the removal of your existing subnet. For the sake of this workshop you can choose to keep them to prevent the errors, or you can use `terraform taint` to force recreation of the NIC and the VM when you run `terraform apply` next. Or try out a `terraform destroy` to see how quickly you can rebuild your infrastructure!
 
-Let's move on to the next part and start preparing our code for turning it into a module!
+### Alternative exercise
+
+Find any example public module for the `azurerm` provider in the [Terraform registry](https://registry.terraform.io/browse/modules?provider=azurerm) and apply it to your configuration.
+
+</details>
+
+## Level 3: Store state in a remote backend
+
+By default, Terraform stores state locally in a file named terraform.tfstate. When working with Terraform in a team, use of a local file makes Terraform usage complicated because each user must make sure they always have the latest state data before running Terraform and make sure that nobody else runs Terraform at the same time, since Terraform locks the file during its operations.
+
+With remote state, Terraform writes the state data to a remote data store, which can then be shared between all members of a team. Terraform supports storing state in Terraform Cloud, HashiCorp Consul, Amazon S3, Azure Blob Storage, Google Cloud Storage, Alibaba Cloud OSS, and more. The place where the state is stored by Terraform is called a `backend`.
+
+By default, Terraform uses a backend called local, which stores state as a local file on disk. But in any use case where you are not the only person using the Terraform infrastructure, you should always configure a Terraform backend. In this module, we will configure an `azurerm` backend and store our Terraform state in an Azure storage account. Since the state file contains sensitive data, you should make sure that the storage account you use for Terraform state files is well protected.
+
+> If you're using the shared subscription you can use the pre-created storage account and storage container. You can also create one manually. Or, for **BONUS POINTS**, create one yourself by finding a module in the Terraform Registry that allows you to create a storage account and `tfstates` container. Once you have it set up, continue with the next assignment:
+
+> Read about the `azurerm` backend [here](https://developer.hashicorp.com/terraform/language/settings/backends/azurerm). Create a file `backend.tf` containing an `azurerm` backend configuration. The storage account name is `bcworkshoptfstates` in resource group `bctf-workshop-rg` and the container name is `tfstates`. You can think of your own `key` (filename) and you can just use your Azure CLI authentication mechanism.
+
+<details>
+<summary>Solution</summary>
+
+```hcl
+# backend.tf
+terraform {
+  backend "azurerm" {
+    resource_group_name  = "bctf-workshop-rg"
+    storage_account_name = "bcworkshoptfstates"
+    container_name       = "tfstates"
+    key                  = "tommy.terraform.tfstate"
+  }
+}
+```
+</details>
+
+Now, when you run `terraform apply` again to initialize the new backend configuration, Terraform will output that it will need to initialize the new backend:
+
+<details>
+<summary>Output</summary>
+
+```hcl
+Error: Backend initialization required, please run "terraform init"
+│
+│ Reason: Initial configuration of the requested backend "azurerm"
+│
+│ The "backend" is the interface that Terraform uses to store state,
+│ perform operations, etc. If this message is showing up, it means that the
+│ Terraform configuration you're using is using a custom configuration for
+│ the Terraform backend.
+│
+│ Changes to backend configurations require reinitialization. This allows
+│ Terraform to set up the new configuration, copy existing state, etc. Please run
+│ "terraform init" with either the "-reconfigure" or "-migrate-state" flags to
+│ use the current configuration.
+│
+│ If the change reason above is incorrect, please verify your configuration
+│ hasn't changed and try again. At this point, no changes to your existing
+│ configuration or state have been made.
+```
+
+</details>
+
+Initialize the new backend configuration by running `terraform init` now.<p>
+You will be asked if you want to copy the existing state file. Enter "yes" since we do want to migrate from a local to a remote backend! Check the contents of your local `terraform.tfstate` file and verify that the file is now empty, since we've moved this state file to the storage account.
+
+In most CI/CD scenarios you will use service principals or Azure CLI to authenticate to an `azurerm` backend. However, you can also specify any of the lines in the backend configuration as a command-line parameter or through a separate file, after with you can pass them to the `terraform init` command using `-backend-config=PATH` (for files) or `-backend-config="KEY=VALUE"` for inline variables, such as `-backend-config="access_key=$SUPERSECRETKEY_IN_MY_DEVOPS_RUNNER"`.
+
+We are now one step closer to moving our code away from our local computer and preparing it for re-use. Let's move on to the next part and start preparing our code for turning it into a module!
 
 ## Level 4: Turn your code into a reusable module
 
-As you start working with Terraform more and more, you will start re-using a lot of different templates. Think of situations where you want to separate environments or share templates with your colleagues. Instead of sharing your Terraform code, you can also turn your templates into modules. Hashicorp mentions a number of advantages in their documentation [here](https://learn.hashicorp.com/tutorials/terraform/module?in=terraform/modules):
+Up to this point you've already created a pretty nice block of Terraform configuration. Now is the point where you turn all your work into a module so that you can distribute it to multiple environments or your colleagues. As you've seen in previous exercises, there is not that much needed to make your code reusable: a module is already functional if it contains your `main.tf`, `outputs.tf` and `variables.tf`. Any code that is **specific** to your current configuration should be left out of your module:
+  
+- **Provider configuration**: A provider is configured in your root module, and is shared between modules to run a combination of modules and your own code. Each module can however declare its own provider requirements, so that Terraform can ensure that there is a single version of the provider that is compatible with all modules in the configuration. More info [here](https://developer.hashicorp.com/terraform/language/modules/develop/providers) and [here](https://developer.hashicorp.com/terraform/language/providers/requirements).
+- **Backend configuration**: The backend is specific to a run of Terraform, and is never part of a reusable module.
+- **Variables declaration (*.tfvars)**: The way you define variables for your module is within the `module` block where you call your module and supply the module inputs. You can however still configure your root module with variables, but you will have to created a new `variables.tf` for your root module. The `variables.tf` you've created before is part of your reusable module!
+- **Terraform-generated files**: It may go without saying, but anything in the `.terraform` folder or a copy of your state file (`*.tfstate`) should never be included in your module folder. They may contain sensitive data and are generally specific to your current Terraform configuration.
 
-- Organize configuration - Modules make it easier to navigate, understand, and update your configuration by keeping related parts of your configuration together. Even moderately complex infrastructure can require hundreds or thousands of lines of configuration to implement. By using modules, you can organize your configuration into logical components.
+> Given your current folder structure with all Terraform files in the root folder, and the `name_module` in a separate folder, move your reusable module code to its own directory called `bctf_vm_module`.  NOTE: Be sure to also fix the path reference to the `name_module` to reference the new folder structure.  
 
-- Encapsulate configuration - Another benefit of using modules is to encapsulate configuration into distinct logical components. Encapsulation can help prevent unintended consequences, such as a change to one part of your configuration accidentally causing changes to other infrastructure, and reduce the chances of simple errors like using the same name for two different resources.
+<details>
+<summary>Solution</summary>
 
-- Re-use configuration - Writing all of your configuration from scratch can be time consuming and error prone. Using modules can save time and reduce costly errors by re-using configuration written either by yourself, other members of your team, or other Terraform practitioners who have published modules for you to use. You can also share modules that you have written with your team or the general public, giving them the benefit of your hard work.
+```bash
+## Folder structure
+# New module
+-modules
+--name_module
+---main.tf # can also be split up in multiple .tf files
+--bctf_vm_module
+---main.tf
+---outputs.tf
+---variables.tf
+# Remaining files
+backend.tf
+terraform.tfvars
+```
 
-- Provide consistency and ensure best practices - Modules also help to provide consistency in your configurations. Not only does consistency make complex configurations easier to understand, it also helps to ensure that best practices are applied across all of your configuration. For instance, cloud providers give many options for configuring object storage services, such as Amazon S3 or Google Cloud Storage buckets. There have been many high-profile security incidents involving incorrectly secured object storage, and given the number of complex configuration options involved, it's easy to accidentally misconfigure these services.
+</details>
 
-Using modules can help reduce these errors. For example, you might create a module to describe how all of your organization's public website buckets will be configured, and another module for private buckets used for logging applications. Also, if a configuration for a type of resource needs to be updated, using modules allows you to make that update in a single place and have it be applied to all cases where you use that module.
+Congratulations, you have created your first module! It's easy as that. <p>
+The next step is to set your module input variables, which are basically just the variables that you've set before using your `*.tfvars` file. You can simply copy the key-value pairs to the module definition block.
 
+> Create a new `main.tf` file in the root folder that also contains your backend configuration. Here, be sure to configure your providers and call your module the same way you learned with the `name_module` in level 2.
+
+<details>
+<summary>Solution</summary>
+
+ ```hcl
+# main.tf
+provider "azurerm" {
+  features {}
+}
+
+provider "tls" {}
+
+module "bctf_vm" {
+  source = "./modules/bctf_vm_module"
+
+  location      = "westeurope"
+  yourname      = "tdejong"
+  my_ip_address = "<your_ip_address>"
+  additional_tags = {
+    "MyTerraformSkillLevel" = "Uberhigh"
+  }
+  allowOfficeVPN = true
+  enable_vm_shutdown = true
+  vm_shutdown_time = 2000
+  data_disks = {
+      1 = {
+        name = "smalldatadisk"
+        size = 128
+      },
+      2 = {
+        name = "bigdatadisk"
+        size = 256
+      }
+  }
+}
+```
+
+</details>
+
+Now, when you run `terraform apply`, Terraform will detect that you've moved your resources to a child module, which changes it's resource ID. Because of this, Terraform will prompt that it will delete all the current resources and replace them. To prevent this, you must let Terraform know that you intend to move resources rather than replace them.
+
+```bash
+Plan: 25 to add, 0 to change, 25 to destroy.
+```
+
+Generally, this is not an issue as you can just recreate your resources, but there can always be cases where you do not want this behavior. To prevent this, you can use the `moved` configuration block to track your resource moves in the configuration itself. Read more about this block [here](https://developer.hashicorp.com/terraform/tutorials/modules/move-config).
+
+> Let's say we want to keep our SSH key but that it's fine that all our resources will be recreated to accomodate the move of our resources from a parent (root) to a child (reusable) module. Create a `moved` block to refactor your configuration and update the resource ID for your `tls_private_key` resource.
+
+<details>
+<summary>Solution</summary>
+
+ ```hcl
+# main.tf
+moved {
+  from = tls_private_key.bctf-ssh-key
+  to   = module.bctf_vm.tls_private_key.bctf-ssh-key
+}
+```
+
+</details>
+
+Your output should now be:
+
+```bash
+Plan: 24 to add, 0 to change, 24 to destroy.
+```
+
+**Bonus points:** you can further separate parts of your current module into a networking module, disk module, compute module, however far you want to go. Terraform writes about this here: [Module Creation - Recommended Pattern](https://developer.hashicorp.com/terraform/tutorials/certification-associate-tutorials-003/pattern-module-creation).
+
+## Level 5: Next steps
+
+You've made it to the end of the workshop! Over the past three modules you have worked with most of Terraform's features and have experienced how powerful it can be. There are a few more steps to take from here if you want to dive deeper into the tool, but those are all for bonus points ;)
+
+- **Environments**: You can dive deeper into how Terraform suggests to deal with separating configuration per environment. Your module is already a great start, since you can now use the same infrastructure across different environments. You could simply add an `env` variable and add it to your naming convention. But there is also the concept of Terraform workspaces which allow you to separate state files per workspace. Read more about the possibilities in this great blog post series [here](https://blog.gruntwork.io/how-to-manage-multiple-environments-with-terraform-32c7bc5d692).
+- **Publishing your module**: If you want to share your module with others, you can upload it to a Git repository. The `source` argument you used to reference a local path in your module config can just as well be a Git URL, complete with a ref structure so you can even specify a specific tag/version of the Git repository to use in your config.
+- **Work with awesome open-source extensions**: Next to the huge amount of community providers and modules, there are tons of powerful tools to improve your code. Just some examples:
+  - [`terraform-docs`](https://terraform-docs.io/) to automatically generate documentation on input variables and outputs and many more for your Terraform modules.
+  - [`tfsec`](https://aquasecurity.github.io/tfsec/v1.28.1/) for static code analysis.
+  - [`checkov`](https://www.checkov.io/) for scanning security best practices.
+  - [`tflint`](https://github.com/terraform-linters/tflint) for linting your Terraform code.
+  - Or any of the other cool tools included in the [pre-commit hooks for Terraform](https://github.com/antonbabenko/pre-commit-terraform).
+
+### Get certified!
+
+As mentioned before, you've touched upon most of the subjects and tools needed to get started with Terraform. Some subjects were however left out of scope of this workshop and I advise you to read about them before doing the Terraform Associate exam. You will not get a lot of difficult questions about these subjects, but they're easy points once you've read about them once.
+
+You can check out the full list of subjects you should familiarize with for the exam [in the Exam Review here](https://developer.hashicorp.com/terraform/tutorials/certification-003/associate-review-003). This list is very useful as it also included links to documentation and tutorials corresponding to the specific subject. There are however some subjects that were not discussed in the workshop:
+
+- 4a Describe when to use `terraform import` to import existing infrastructure into your Terraform state
+- 4c Describe when to enable verbose logging and what the outcome/value is
+- 7e Manage resource drift and Terraform state
+- 8b Describe secure secret injection best practice using Hashicorp Vault
+- 8g Describe built-in dependency management (order of execution based)
+- 9: Anything related to **Terraform Cloud**, the paid enterprise offering by HashiCorp
+
+I can very much recommend the practice questions for the Terraform Associate exam over at [ExamTopics](https://www.examtopics.com/exams/hashicorp/terraform-associate/). Good luck!

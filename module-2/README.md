@@ -366,6 +366,7 @@ Now as mentioned before, there are some imagineable use cases for these commands
 </details>
 <p></p>
 
+**Bonus points**: Create a local-exec provisioner that grabs your IP address from a random web service that replaces the `var.my_ip_address` variable.
 
 Finally, we have the `remote-exec` provisioner. As you know, we can use this to execute a command on the remote machine. Let's use this to execute the shell script that we copied using the `file` provisioner.
 
