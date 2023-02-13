@@ -1,4 +1,4 @@
-# Module 3: Working with Terraform modules
+# Module 3: Working with complex variables and Terraform modules
 
 # The Challenge
 
@@ -177,7 +177,7 @@ resource "azurerm_network_security_rule" "vre-allow_office_vpn" {
 }
 ```
 
-</details> 
+</details>
 
 <br>
 Let's make this a bit more complex. Imagine we want to give the user of our template the option to conditionally attach a data disk to our VM to increase storage space. In this example we do not worry about attaching the disk in the OS itself, just adding it within Azure.
@@ -300,7 +300,7 @@ This may sound confusing, so let's practice with some examples.
 
 We can get started with a very simple example: a naming convention module. As mentioned before, a module can be as little as a template that takes **module inputs** through its **variables**, and can generate **module outputs** using its **outputs**. Any set of Terraform configuration files in a folder (as you've been working now) can be used as a module.
 
-> Create some simple Terraform configuration in a new folder called `name_module` in the folder where you are have been writing your code up until now. This Terraform code takes two variables you currently use in your naming convention: `yourname` and `location`. What it outputs is the value you currently use as `local.rootname`. Give the output the name `nameconv`. TIP: Try out Terraform's `join` function for concatenating your values.
+> Create some simple Terraform configuration in a new folder called `name_module` in the folder where you are have been writing your code up until now. This Terraform code takes two variables you currently use in your naming convention: `yourname` and `location`. You don't have to define any `data sources` or `resources`. What it outputs is the value you currently use as `local.rootname`. Give the output the name `nameconv`. TIP: Try out Terraform's `join` function for concatenating your values.
 
 <details>
 <summary>Solution</summary>
