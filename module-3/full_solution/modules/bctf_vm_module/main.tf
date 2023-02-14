@@ -144,14 +144,14 @@ resource "azurerm_key_vault_access_policy" "bctf-kv-current-ap" {
   key_vault_id       = azurerm_key_vault.bctf-kv.id
   tenant_id          = data.azurerm_client_config.current.tenant_id
   object_id          = data.azurerm_client_config.current.object_id
-  secret_permissions = ["Get", "Set", "List", ]
+  secret_permissions = ["Get", "Set", "List", "Delete", "Purge", ]
 }
 
 resource "azurerm_key_vault_access_policy" "bctf-kv-vm-ap" {
   key_vault_id       = azurerm_key_vault.bctf-kv.id
   tenant_id          = data.azurerm_client_config.current.tenant_id
   object_id          = azurerm_linux_virtual_machine.bctf-vm.identity[0].principal_id
-  secret_permissions = ["Get", "Set", "List", ]
+  secret_permissions = ["Get", "Set", "List", "Delete", "Purge", ]
 }
 
 resource "tls_private_key" "bctf-ssh-key" {

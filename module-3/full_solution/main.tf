@@ -9,7 +9,7 @@ module "bctf_vm" {
 
   location      = "westeurope"
   yourname      = "tdejong"
-  my_ip_address = "87.208.38.6"
+  my_ip_address = "45.94.174.33"
   additional_tags = {
     "MyTerraformSkillLevel" = "Uberhigh"
   }
@@ -31,4 +31,9 @@ module "bctf_vm" {
 moved {
   from = tls_private_key.bctf-ssh-key
   to   = module.bctf_vm.tls_private_key.bctf-ssh-key
+}
+
+moved {
+  from = azurerm_resource_group.bctf-rg
+  to   = module.bctf_vm.azurerm_resource_group.bctf-rg
 }

@@ -35,7 +35,7 @@ Some general tips before you start:
   
 ## Level 1: Use functions and expressions to dynamically generate resources/properties
 
-While Terraform is not technically a programming language, there are several built-in functions you can use to generate dynamically generate properties or resources. These functions allow string manipulation, collections, logical functions and much more. Read more about them [here](https://www.terraform.io/language/functions). You have already worked with a few functions in the previous modules, such as the `regex` function to validate variable values or the `formatdate` function to generate a specific timestamp format. We will work with some common functions in the upcoming excercises.
+While Terraform is not technically a programming language, there are several built-in functions you can use to generate dynamically generate properties or resources. These functions allow string manipulation, collections, logical functions and much more. Read more about them [here](https://www.terraform.io/language/functions). You have already worked with a few functions in the previous modules, such as the `regex` function to validate variable values. We will work with some common functions in the upcoming excercises.
 
 > Let's start simple. Use a string manipulation feature to remove the dashes ('-') from `local.rootname` to generate `local.trimmed_rootname`.
 
@@ -53,6 +53,7 @@ locals {
 </details>
 
 Run `terraform plan` and verify this changes nothing to your configuration, but it makes your code a little bit nicer.<p>
+
 We are currently defining our tags in the `local.tags` block so they can be the same for all resources we deploy. But what if we want to allow users of our template to specify additional custom tags, or we want to have additional tags for specific resources?
 
 > Create a variable definition called `additional_tags` (use the correct type!) and ensure that it is added to all resources we create using the same `locals.tags` block. Add a custom `key=value` tag to your `.tfvars` file. Run `terraform plan` to ensure all your resources are being **changed**.
@@ -88,9 +89,13 @@ locals {
 
 </details>
 
+**Bonus points**: Add another default tag that writes the current timestamp - formatted as `YYYY-MM-DD_hour:minute` - to a tag called `last_updated`. This way every time you run `terraform apply` this tag gets updated.
+
+**Super duper extra bonus points**: Use the `lifecycle` meta-argument to ignore later changes to this tag on your virtual machine resource.
+
 There may also be cases where you want to add parameters to your template that you want to have visible somewhere. An example we will explore here is the VM shutdown schedule. You may want to let the user configure this shutdown schedule, but also show it in the tags on the Overview pane of your virtual machine in the Azure Portal to make it clear this is configured.<p>
 
-> First find the way Terraform configures the automated shutdown schedules for Azure VMs. (HINT: look for Azure DevTest). Next, create two variable definitions called `vm_shutdown_time` and `enable_auto_shutdown`. Add these variables to the shutdown schedule resource and add both variables to the tags of your Azure VM as a string in a `key=value` pair.
+> First find the way Terraform configures the automated shutdown schedules for Azure VMs. (HINT: look for Azure DevTest). Next, create two variable definitions called `vm_shutdown_time` and `enable_vm_shutdown`. Add these variables to the shutdown schedule resource and add both variables to the tags of your Azure VM as a string in a `key=value` pair.
 
 **Bonus points**: Create a variable validation rule to validate that the value inputted to the `vm_shutdown_time` variable is of the format Terraform expects for that specific property argument.
 
